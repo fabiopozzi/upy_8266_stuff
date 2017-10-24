@@ -2,9 +2,17 @@
 import time
 import network
 import dht
+import urequests
 from machine import Pin
 
 def setup_wifi():
+    """
+    Setup Wi-Fi connection
+
+    connects to an hardcoded WPA network and returns only when
+    connection is estabilished.
+    Prints IP configuration before exiting
+    """
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
         sta_if.active(True)
@@ -15,23 +23,56 @@ def setup_wifi():
         print("network config:", sta_if.ifconfig())
 
 
+def send_value(val):
+    """
+    Send value to remote host
+
+    uses urequests to send a numeric value to an hardcoded host via
+    HTTP POST, with a custom header 'Api_Key'.
+    """
+    tmp = urequests.post("http://192.168.1.4:5000/api",
+                         headers={'Api_Key': 'Antani1234'}, data=str(val))
+    tmp.close()
+
+
 def setup_sensor():
-    d = dht.DHT22(Pin(4))
+    """
+    Setup DHT22 sensor connected to pin 4.
+    Waits for 5 seconds to avoid reading data too early
+    """
+    sensor = dht.DHT22(Pin(4))
     # sleep 5 seconds
     time.sleep(5)
-    return d
+    return sensor
 
 
-def measure(sensor):
+def get_measure(sensor):
+    """
+    Read data from DHT sensor instance and print it to screen.
+    :returns: dictionary with temperature and humidity readings
+    """
     sensor.measure()
     time.sleep(5)
-    print("Temp: %3.1f C" % sensor.temperature())
-    print("Humidity: %3.2f RH" % sensor.humidity())
+    temp = sensor.temperature()
+    hum = sensor.humidity()
+    print("Temp: %3.1f C" % temp)
+    print("Humidity: %3.2f RH" % hum)
+    return {'t':temp, 'h':hum}
 
+
+def write_values(measure):
+    """
+    Write data on file.
+    """
+    with open('dati.txt', 'a+') as out_file:
+        out_file.write('%f;%f\n' % (measure['t'], measure['h']))
 
 def daicazzo():
-    setup_wifi()
-    dht = setup_sensor()
+    """ main loop """
+    dht_sensor = setup_sensor()
+    #setup_wifi()
     while True:
-        measure(dht)
-        time.sleep(5)
+        measure = get_measure(dht_sensor)
+        #send_value(measure['t'])
+        write_values(measure)
+        time.sleep(60)
